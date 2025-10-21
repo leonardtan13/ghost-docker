@@ -1,52 +1,38 @@
----
-# yaml-language-server: $schema=https://raw.githubusercontent.com/compose-spec/compose-spec/main/schema/compose-spec.json
 services:
-  caddy:
-    image: caddy:2.10.0-alpine@sha256:e2e3a089760c453bc51c4e718342bd7032d6714f15b437db7121bfc2de2654a6
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
+  mysql8:
+    image: docker.io/mysql:8.4
     environment:
-      DOMAIN: ${DOMAIN:?DOMAIN environment variable is required}
-      ADMIN_DOMAIN: ${ADMIN_DOMAIN:-}
-      ACTIVITYPUB_TARGET: ${ACTIVITYPUB_TARGET:-https://ap.ghost.org}
+      MYSQL_DATABASE: ghost
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_app_pw
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_pw
+      MYSQL_MULTIPLE_DATABASES: activitypub
+    secrets:
+      - mysql_root_pw
+      - mysql_app_pw
     volumes:
-      - ./caddy:/etc/caddy
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - ghost
-    networks:
-      - ghost_network
+      - ghost_mysql:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d:ro
+    networks: [web-net]
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -uroot -p$$(cat /run/secrets/mysql_root_pw) || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    expose:
+      - "3306"
 
   ghost:
-    # Do not alter this without updating the Tinybird Sync container as well
-    image: ghost:${GHOST_VERSION:-6-alpine}
-    restart: always
+    image: docker.io/ghost:alpine
     expose:
-      - "127.0.0.1:${GHOST_PORT:-2368}:2368"
-    # This is required to import current config when migrating
-    env_file:
-      - .env
-    environment:
-      NODE_ENV: production
-      url: https://${DOMAIN:?DOMAIN environment variable is required}
-      admin__url: ${ADMIN_DOMAIN:+https://${ADMIN_DOMAIN}}
-      database__client: mysql
-      database__connection__host: db
-      database__connection__user: ${DATABASE_USER:-ghost}
-      database__connection__password: ${DATABASE_PASSWORD:?DATABASE_PASSWORD environment variable is required}
-      database__connection__database: ghost
-      tinybird__tracker__endpoint: https://${DOMAIN:?DOMAIN environment variable is required}/.ghost/analytics/api/v1/page_hit
-      tinybird__adminToken: ${TINYBIRD_ADMIN_TOKEN:-}
-      tinybird__workspaceId: ${TINYBIRD_WORKSPACE_ID:-}
-      tinybird__tracker__datasource: analytics_events
-      tinybird__stats__endpoint: ${TINYBIRD_API_URL:-https://api.tinybird.co}
-    volumes:
-      - ${UPLOAD_LOCATION:-./data/ghost}:/var/lib/ghost/content
+      - "2368"
     depends_on:
-      db:
+      mysql8:
         condition: service_healthy
       tinybird-sync:
         condition: service_completed_successfully
@@ -57,35 +43,36 @@ services:
       activitypub:
         condition: service_started
         required: false
-    networks:
-      - ghost_network
 
-  db:
-    image: mysql:8.0.42@sha256:4445b2668d41143cb50e471ee207f8822006249b6859b24f7e12479684def5d9
-    restart: always
-    expose:
-      - "3306"
     environment:
-      MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD:?DATABASE_ROOT_PASSWORD environment variable is required}
-      MYSQL_USER: ${DATABASE_USER:-ghost}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD environment variable is required}
-      MYSQL_DATABASE: ghost
-      MYSQL_MULTIPLE_DATABASES: activitypub
+      url: https://blog.leonardtgm.com
+      NODE_ENV: production
+      database__client: mysql
+      database__connection__host: mysql8
+      database__connection__user: ghost
+      database__connection__password: ${MYSQL_APP_PASSWORD}
+      database__connection__database: ghost
+      tinybird__tracker__endpoint: https://blog.leonardtgm.com/.ghost/analytics/api/v1/page_hit
+      tinybird__adminToken: ${TINYBIRD_ADMIN_TOKEN:-}
+      tinybird__workspaceId: ${TINYBIRD_WORKSPACE_ID:-}
+      tinybird__tracker__datasource: analytics_events
+      tinybird__stats__endpoint: ${TINYBIRD_API_URL:-https://api.tinybird.co}
     volumes:
-      - ${MYSQL_DATA_LOCATION:-./data/mysql}:/var/lib/mysql
-      - ./mysql-init:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: mysqladmin ping -p$$MYSQL_ROOT_PASSWORD -h 127.0.0.1
-      interval: 1s
-      start_period: 30s
-      start_interval: 10s
-      retries: 120
-    networks:
-      - ghost_network
+      - ghost_content:/var/lib/ghost/content
+    networks: [web-net]
+    restart: unless-stopped
+
+  cloudflared:
+    image: docker.io/cloudflare/cloudflared:latest
+    depends_on:
+      ghost:
+        condition: service_started
+    command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
+    networks: [web-net]
+    restart: unless-stopped
 
   traffic-analytics:
-    image: ghost/traffic-analytics:1.0.18@sha256:e460800c17f34bec50cd943b9264c74cfcd7e922a62ea73267be920be8f258c0
-    restart: always
+    image: docker.io/ghost/traffic-analytics:1.0.18@sha256:e460800c17f34bec50cd943b9264c74cfcd7e922a62ea73267be920be8f258c0
     expose:
       - "3000"
     volumes:
@@ -98,35 +85,42 @@ services:
       TINYBIRD_TRACKER_TOKEN: ${TINYBIRD_TRACKER_TOKEN:-}
       LOG_LEVEL: debug
     profiles: [analytics]
-    networks:
-      - ghost_network
+    networks: [web-net]
+    restart: unless-stopped
 
   activitypub:
     image: ghcr.io/tryghost/activitypub:1.1.0@sha256:39c212fe23603b182d68e67d555c6b9b04b1e57459dfc0bef26d6e4980eb04d1
-    restart: always
     expose:
       - "8080"
     volumes:
-      - ${UPLOAD_LOCATION:-./data/ghost}:/opt/activitypub/content
+      - ghost_content:/opt/activitypub/content
     environment:
-      # See https://github.com/TryGhost/ActivityPub/blob/main/docs/env-vars.md
       NODE_ENV: production
-      MYSQL_HOST: db
-      MYSQL_USER: ${DATABASE_USER:-ghost}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD environment variable is required}
+      MYSQL_HOST: mysql8
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD}
       MYSQL_DATABASE: activitypub
       LOCAL_STORAGE_PATH: /opt/activitypub/content/images/activitypub
-      LOCAL_STORAGE_HOSTING_URL: https://${DOMAIN}/content/images/activitypub
+      LOCAL_STORAGE_HOSTING_URL: https://blog.leonardtgm.com/content/images/activitypub
     depends_on:
-      db:
+      mysql8:
         condition: service_healthy
       activitypub-migrate:
         condition: service_completed_successfully
     profiles: [activitypub]
-    networks:
-      - ghost_network
+    networks: [web-net]
+    restart: unless-stopped
 
-  # Suporting Services
+  activitypub-migrate:
+    image: ghcr.io/tryghost/activitypub-migrations:1.1.0@sha256:b3ab20f55d66eb79090130ff91b57fe93f8a4254b446c2c7fa4507535f503662
+    environment:
+      MYSQL_DB: mysql://ghost:${MYSQL_APP_PASSWORD}@tcp(mysql8:3306)/activitypub
+    networks: [web-net]
+    depends_on:
+      mysql8:
+        condition: service_healthy
+    profiles: [activitypub]
+    restart: no
 
   tinybird-login:
     build:
@@ -138,14 +132,12 @@ services:
       - tinybird_home:/home/tinybird
       - tinybird_files:/data/tinybird
     profiles: [analytics]
-    networks:
-      - ghost_network
+    networks: [web-net]
     tty: false
     restart: no
 
   tinybird-sync:
-    # Do not alter this without updating the Ghost container as well
-    image: ghost:${GHOST_VERSION:-6-alpine}
+    image: docker.io/ghost:alpine
     command: >
       sh -c "
         if [ -d /var/lib/ghost/current/core/server/data/tinybird ]; then
@@ -162,7 +154,7 @@ services:
       tinybird-login:
         condition: service_completed_successfully
     networks:
-      - ghost_network
+      - web-net
     profiles: [analytics]
     restart: no
 
@@ -183,27 +175,23 @@ services:
         condition: service_completed_successfully
     profiles: [analytics]
     networks:
-      - ghost_network
+      - web-net
     tty: true
-
-  activitypub-migrate:
-    image: ghcr.io/tryghost/activitypub-migrations:1.1.0@sha256:b3ab20f55d66eb79090130ff91b57fe93f8a4254b446c2c7fa4507535f503662
-    environment:
-      MYSQL_DB: mysql://${DATABASE_USER:-ghost}:${DATABASE_PASSWORD:?DATABASE_PASSWORD environment variable is required}@tcp(db:3306)/activitypub
-    networks:
-      - ghost_network
-    depends_on:
-      db:
-        condition: service_healthy
-    profiles: [activitypub]
     restart: no
 
 volumes:
-  caddy_data:
-  caddy_config:
+  ghost_content:
+  ghost_mysql:
   tinybird_files:
   tinybird_home:
   traffic_analytics_data:
 
+secrets:
+  mysql_root_pw:
+    file: ./secrets/mysql_root_pw.txt
+  mysql_app_pw:
+    file: ./secrets/mysql_app_pw.txt
+
 networks:
-  ghost_network:
+  web-net:
+    external: true
