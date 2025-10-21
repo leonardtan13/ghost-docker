@@ -13,7 +13,7 @@ services:
     volumes:
       - ghost_mysql:/var/lib/mysql
       - ./mysql-init:/docker-entrypoint-initdb.d:ro
-    networks: [web-net]
+    networks: [ghost-net]
     restart: unless-stopped
     healthcheck:
       test:
@@ -59,7 +59,7 @@ services:
       tinybird__stats__endpoint: ${TINYBIRD_API_URL:-https://api.tinybird.co}
     volumes:
       - ghost_content:/var/lib/ghost/content
-    networks: [web-net]
+    networks: [ghost-net]
     restart: unless-stopped
 
   cloudflared:
@@ -68,7 +68,7 @@ services:
       ghost:
         condition: service_started
     command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
-    networks: [web-net]
+    networks: [ghost-net]
     restart: unless-stopped
 
   traffic-analytics:
@@ -85,7 +85,7 @@ services:
       TINYBIRD_TRACKER_TOKEN: ${TINYBIRD_TRACKER_TOKEN:-}
       LOG_LEVEL: debug
     profiles: [analytics]
-    networks: [web-net]
+    networks: [ghost-net]
     restart: unless-stopped
 
   activitypub:
@@ -108,19 +108,19 @@ services:
       activitypub-migrate:
         condition: service_completed_successfully
     profiles: [activitypub]
-    networks: [web-net]
+    networks: [ghost-net]
     restart: unless-stopped
 
   activitypub-migrate:
     image: ghcr.io/tryghost/activitypub-migrations:1.1.0@sha256:b3ab20f55d66eb79090130ff91b57fe93f8a4254b446c2c7fa4507535f503662
     environment:
       MYSQL_DB: mysql://ghost:${MYSQL_APP_PASSWORD}@tcp(mysql8:3306)/activitypub
-    networks: [web-net]
+    networks: [ghost-net]
     depends_on:
       mysql8:
         condition: service_healthy
     profiles: [activitypub]
-    restart: no
+    restart: "no"
 
   tinybird-login:
     build:
@@ -132,9 +132,9 @@ services:
       - tinybird_home:/home/tinybird
       - tinybird_files:/data/tinybird
     profiles: [analytics]
-    networks: [web-net]
+    networks: [ghost-net]
     tty: false
-    restart: no
+    restart: "no"
 
   tinybird-sync:
     image: docker.io/ghost:alpine
@@ -154,9 +154,9 @@ services:
       tinybird-login:
         condition: service_completed_successfully
     networks:
-      - web-net
+      - ghost-net
     profiles: [analytics]
-    restart: no
+    restart: "no"
 
   tinybird-deploy:
     build:
@@ -165,7 +165,7 @@ services:
     working_dir: /data/tinybird
     command: >
       sh -c "
-        tb-wrapper --cloud deploy
+        tb-wrapper --cloud deploy --allow-destructive-operations
       "
     volumes:
       - tinybird_home:/home/tinybird
@@ -175,9 +175,9 @@ services:
         condition: service_completed_successfully
     profiles: [analytics]
     networks:
-      - web-net
+      - ghost-net
     tty: true
-    restart: no
+    restart: "no"
 
 volumes:
   ghost_content:
@@ -193,5 +193,5 @@ secrets:
     file: ./secrets/mysql_app_pw.txt
 
 networks:
-  web-net:
-    external: true
+  ghost-net:
+    driver: bridge

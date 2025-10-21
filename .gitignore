@@ -1,5 +1,7 @@
 # Node template
 
+secrets/*
+
 # Logs
 logs
 *.log
