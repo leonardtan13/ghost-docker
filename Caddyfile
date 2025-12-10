@@ -22,11 +22,15 @@
 
     # JWKS endpoint for ActivityPub handshake
     handle /ghost/.well-known/jwks.json {
-        reverse_proxy ghost:2368
+        reverse_proxy ghost:2368 {
+            header_up X-Forwarded-Proto https
+        }
     }
 
     # All other traffic goes to Ghost
     handle {
-        reverse_proxy ghost:2368
+        reverse_proxy ghost:2368 {
+            header_up X-Forwarded-Proto https
+        }
     }
 }
