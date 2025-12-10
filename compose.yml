@@ -13,6 +13,10 @@ services:
     volumes:
       - ghost_mysql:/var/lib/mysql
       - ./mysql-init:/docker-entrypoint-initdb.d:ro
+      - backup_staging:/backup
+    labels:
+      - docker-volume-backup.archive-pre=/bin/sh -c 'mysqldump -uroot -p$$(cat /run/secrets/mysql_root_pw) --all-databases --single-transaction --routines --triggers > /backup/dump.sql && echo "Database dump completed"'
+      - docker-volume-backup.archive-post=/bin/sh -c 'rm -f /backup/dump.sql && echo "Dump cleanup completed"'
     networks: [ghost-net]
     restart: unless-stopped
     healthcheck:
@@ -199,12 +203,36 @@ services:
     tty: true
     restart: "no"
 
+  backup:
+    image: offen/docker-volume-backup:v2
+    environment:
+      BACKUP_CRON_EXPRESSION: "0 2 * * *"
+      AWS_ENDPOINT: ${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+      AWS_S3_BUCKET_NAME: ${R2_BUCKET_NAME}
+      AWS_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      BACKUP_FILENAME: ghost-backup-%Y-%m-%dT%H-%M-%S.tar.gz
+      BACKUP_PRUNING_PREFIX: ghost-backup-
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      EXEC_FORWARD_OUTPUT: "true"
+    volumes:
+      - backup_staging:/backup/mysql:ro
+      - ghost_content:/backup/content:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      mysql8:
+        condition: service_healthy
+    profiles: [backup]
+    networks: [ghost-net]
+    restart: unless-stopped
+
 volumes:
   ghost_content:
   ghost_mysql:
   tinybird_files:
   tinybird_home:
   traffic_analytics_data:
+  backup_staging:
 
 secrets:
   mysql_root_pw:

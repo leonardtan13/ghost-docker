@@ -3,7 +3,9 @@
     "allow": [
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(curl:*)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:offen.github.io)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
