@@ -1,0 +1,32 @@
+{
+    auto_https off
+}
+
+:8080 {
+    # ActivityPub routes
+    handle /.ghost/activitypub/* {
+        reverse_proxy activitypub:8080
+    }
+
+    handle /.well-known/webfinger {
+        reverse_proxy activitypub:8080
+    }
+
+    handle /.well-known/nodeinfo {
+        reverse_proxy activitypub:8080
+    }
+
+    handle /nodeinfo/* {
+        reverse_proxy activitypub:8080
+    }
+
+    # JWKS endpoint for ActivityPub handshake
+    handle /ghost/.well-known/jwks.json {
+        reverse_proxy ghost:2368
+    }
+
+    # All other traffic goes to Ghost
+    handle {
+        reverse_proxy ghost:2368
+    }
+}

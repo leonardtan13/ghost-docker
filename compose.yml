@@ -64,16 +64,27 @@ services:
       mail__options__auth__user: ${mail__options__auth__user:-}
       mail__options__auth__pass : ${mail__options__auth__pass:-}
       mail__from: ${mail__from:-}
-      activitypub__url: http://${ACTIVITYPUB_TARGET:-ap.ghost.org}
     volumes:
       - ghost_content:/var/lib/ghost/content
+    networks: [ghost-net]
+    restart: unless-stopped
+
+  caddy:
+    image: docker.io/caddy:alpine
+    expose:
+      - "8080"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      ghost:
+        condition: service_started
     networks: [ghost-net]
     restart: unless-stopped
 
   cloudflared:
     image: docker.io/cloudflare/cloudflared:latest
     depends_on:
-      ghost:
+      caddy:
         condition: service_started
     command: ["tunnel", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
     networks: [ghost-net]
