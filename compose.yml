@@ -64,6 +64,7 @@ services:
       mail__options__auth__user: ${mail__options__auth__user:-}
       mail__options__auth__pass : ${mail__options__auth__pass:-}
       mail__from: ${mail__from:-}
+      activitypub__url: http://${ACTIVITYPUB_TARGET:-ap.ghost.org}
     volumes:
       - ghost_content:/var/lib/ghost/content
     networks: [ghost-net]
