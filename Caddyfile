@@ -5,19 +5,27 @@
 :8080 {
     # ActivityPub routes
     handle /.ghost/activitypub/* {
-        reverse_proxy activitypub:8080
+        reverse_proxy activitypub:8080 {
+            header_up X-Forwarded-Proto https
+        }
     }
 
     handle /.well-known/webfinger {
-        reverse_proxy activitypub:8080
+        reverse_proxy activitypub:8080 {
+            header_up X-Forwarded-Proto https
+        }
     }
 
     handle /.well-known/nodeinfo {
-        reverse_proxy activitypub:8080
+        reverse_proxy activitypub:8080 {
+            header_up X-Forwarded-Proto https
+        }
     }
 
     handle /nodeinfo/* {
-        reverse_proxy activitypub:8080
+        reverse_proxy activitypub:8080 {
+            header_up X-Forwarded-Proto https
+        }
     }
 
     # JWKS endpoint for ActivityPub handshake

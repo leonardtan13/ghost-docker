@@ -121,6 +121,7 @@ services:
       MYSQL_DATABASE: activitypub
       LOCAL_STORAGE_PATH: /opt/activitypub/content/images/activitypub
       LOCAL_STORAGE_HOSTING_URL: https://blog.leonardtgm.com/content/images/activitypub
+      GHOST_URL: http://caddy:8080
     depends_on:
       mysql8:
         condition: service_healthy
