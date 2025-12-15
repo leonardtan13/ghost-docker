@@ -37,6 +37,15 @@
         }
     }
 
+    # Analytics routes (traffic-analytics proxy)
+    handle /.ghost/analytics/* {
+        uri strip_prefix /.ghost/analytics
+        reverse_proxy traffic-analytics:3000 {
+            header_up Host blog.leonardtgm.com
+            header_up X-Forwarded-Proto https
+        }
+    }
+
     # JWKS endpoint for ActivityPub handshake
     handle /ghost/.well-known/jwks.json {
         reverse_proxy ghost:2368 {
