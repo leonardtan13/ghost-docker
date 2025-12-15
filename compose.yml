@@ -95,7 +95,8 @@ services:
     restart: unless-stopped
 
   traffic-analytics:
-    image: docker.io/ghost/traffic-analytics:1.0.18@sha256:e460800c17f34bec50cd943b9264c74cfcd7e922a62ea73267be920be8f258c0
+    image: ghost/traffic-analytics:1.0.23@sha256:e55789b748f3de9df44e803dff6f90251330270227fefab7e2bcdf185e3291c6
+    restart: always
     expose:
       - "3000"
     volumes:
@@ -109,7 +110,6 @@ services:
       LOG_LEVEL: debug
     profiles: [analytics]
     networks: [ghost-net]
-    restart: unless-stopped
 
   activitypub:
     image: ghcr.io/tryghost/activitypub:1.1.0@sha256:39c212fe23603b182d68e67d555c6b9b04b1e57459dfc0bef26d6e4980eb04d1
