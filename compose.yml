@@ -112,7 +112,7 @@ services:
     networks: [ghost-net]
 
   activitypub:
-    image: ghcr.io/tryghost/activitypub:sha-53e4214@sha256:2665010c512bdac35028b559e2e264a1c2aad76c1833af58fc3d29385194ac39
+    image: ghcr.io/tryghost/activitypub:sha-53e4214
     expose:
       - "8080"
     volumes:
