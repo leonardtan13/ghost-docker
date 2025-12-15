@@ -6,25 +6,33 @@
     # ActivityPub routes
     handle /.ghost/activitypub/* {
         reverse_proxy activitypub:8080 {
+            header_up Host blog.leonardtgm.com
             header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host blog.leonardtgm.com
         }
     }
 
     handle /.well-known/webfinger {
         reverse_proxy activitypub:8080 {
+            header_up Host blog.leonardtgm.com
             header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host blog.leonardtgm.com
         }
     }
 
     handle /.well-known/nodeinfo {
         reverse_proxy activitypub:8080 {
+            header_up Host blog.leonardtgm.com
             header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host blog.leonardtgm.com
         }
     }
 
     handle /nodeinfo/* {
         reverse_proxy activitypub:8080 {
+            header_up Host blog.leonardtgm.com
             header_up X-Forwarded-Proto https
+            header_up X-Forwarded-Host blog.leonardtgm.com
         }
     }
 
