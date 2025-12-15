@@ -5,6 +5,7 @@
 :8080 {
     # ActivityPub routes
     handle /.ghost/activitypub/* {
+        uri strip_suffix /
         reverse_proxy activitypub:8080 {
             header_up Host blog.leonardtgm.com
             header_up X-Forwarded-Proto https
