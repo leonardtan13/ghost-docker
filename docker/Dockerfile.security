@@ -1,0 +1,10 @@
+# Upstream companion images still bundle pre-fix Node and CA stores.
+ARG APP_IMAGE
+ARG NODE_VERSION=24.22.1
+FROM node:${NODE_VERSION}-alpine AS node
+
+FROM ${APP_IMAGE} AS certificates
+RUN apk add --no-cache 'ca-certificates>=20261020-r0'
+
+FROM certificates AS node-runtime
+COPY --from=node /usr/local/bin/node /usr/local/bin/node

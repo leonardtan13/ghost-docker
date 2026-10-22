@@ -32,7 +32,7 @@ services:
       - "3306"
 
   ghost:
-    image: docker.io/ghost:alpine
+    image: docker.io/ghost:6.72.0-alpine
     expose:
       - "2368"
     depends_on:
@@ -74,7 +74,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: docker.io/caddy:alpine
+    image: docker.io/caddy:2-alpine@sha256:24ec7b05bc532c7bb57f727030c5056e257ff7138b4b50460306819ff79362bd
     expose:
       - "8080"
     volumes:
@@ -86,7 +86,7 @@ services:
     restart: unless-stopped
 
   cloudflared:
-    image: docker.io/cloudflare/cloudflared:latest
+    image: docker.io/cloudflare/cloudflared:2026.10.2
     depends_on:
       caddy:
         condition: service_started
@@ -95,7 +95,13 @@ services:
     restart: unless-stopped
 
   traffic-analytics:
-    image: ghost/traffic-analytics:1.0.23@sha256:e55789b748f3de9df44e803dff6f90251330270227fefab7e2bcdf185e3291c6
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.security
+      target: node-runtime
+      args:
+        APP_IMAGE: ghost/traffic-analytics:1.0.494@sha256:050c1ff676a1463475d7096e2d364b8f8972ef429bcfeca7d7b762bf7ab65a16
+        NODE_VERSION: 26.12.1
     restart: always
     expose:
       - "3000"
@@ -112,7 +118,13 @@ services:
     networks: [ghost-net]
 
   activitypub:
-    image: ghcr.io/tryghost/activitypub:sha-53e4214
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.security
+      target: node-runtime
+      args:
+        APP_IMAGE: ghcr.io/tryghost/activitypub:1.2.15@sha256:24b48f68837f01b7adec5eaf8519af504189c441656e9c12ef0976d7953f8935
+        NODE_VERSION: 24.22.1
     expose:
       - "8080"
     volumes:
@@ -136,7 +148,7 @@ services:
     restart: unless-stopped
 
   activitypub-migrate:
-    image: ghcr.io/tryghost/activitypub-migrations:sha-53e4214
+    image: ghcr.io/tryghost/activitypub-migrations:1.2.15@sha256:c6c6f9160b39bfcdb1fad0a7fca8bac05ad45a7393290a2e9cdcc4b6f1fd00be
     environment:
       MYSQL_DB: mysql://ghost:${MYSQL_APP_PASSWORD}@tcp(mysql8:3306)/activitypub
     networks: [ghost-net]
@@ -161,7 +173,7 @@ services:
     restart: "no"
 
   tinybird-sync:
-    image: docker.io/ghost:alpine
+    image: docker.io/ghost:6.72.0-alpine
     command: >
       sh -c "
         if [ -d /var/lib/ghost/current/core/server/data/tinybird ]; then
@@ -204,7 +216,12 @@ services:
     restart: "no"
 
   backup:
-    image: offen/docker-volume-backup:v2
+    build:
+      context: ./docker
+      dockerfile: Dockerfile.security
+      target: certificates
+      args:
+        APP_IMAGE: offen/docker-volume-backup:v2@sha256:6630d1f122f42ada84566550e47647d2e7488ac3775176ee654b64e489ab6e40
     environment:
       BACKUP_CRON_EXPRESSION: "0 2 * * *"
       AWS_ENDPOINT: ${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
